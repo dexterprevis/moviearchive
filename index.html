@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프리비즈 영화 아카이브</title>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background-color: #121212; color: #ffffff; margin: 0; padding: 0; }
+        header { text-align: center; padding: 40px 20px; background-color: #1e1e1e; border-bottom: 1px solid #333; }
+        h1 { margin: 0; font-size: 28px; letter-spacing: 2px; }
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+        
+        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .filter-group { display: flex; gap: 10px; align-items: center; }
+        .sort-select { background-color: #333; color: white; border: 1px solid #444; padding: 10px; border-radius: 4px; cursor: pointer; }
+        
+        .add-movie-btn { background-color: #e50914; color: white; border: none; border-radius: 4px; padding: 10px 20px; font-size: 14px; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
+        .add-movie-btn:hover { background-color: #b20710; }
+
+        .movie-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; }
+        @media (max-width: 900px) { .movie-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 600px) { .movie-grid { grid-template-columns: repeat(2, 1fr); } }
+        .movie-card { cursor: pointer; transition: transform 0.2s ease; }
+        .movie-card:hover { transform: translateY(-5px); }
+        .poster { width: 100%; aspect-ratio: 2 / 3; background-color: #333; border-radius: 8px; object-fit: cover; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+        .info { margin-top: 12px; text-align: center; }
+        .title { font-size: 16px; font-weight: bold; margin: 0 0 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rating { font-size: 14px; color: #ffd700; }
+        
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background-color: #1e1e1e; width: 90%; max-width: 500px; border-radius: 12px; padding: 30px; position: relative; }
+        .close-btn { position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: #888; }
+        .close-btn:hover { color: #fff; }
+        
+        .modal-header-box { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #333; padding-bottom: 15px; margin-bottom: 15px; }
+        .modal-title { margin: 0; font-size: 20px; }
+        .modal-header-actions { display: flex; gap: 8px; }
+        .change-poster-btn, .edit-movie-btn { background-color: #555; color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 12px; }
+        .delete-movie-btn { background-color: #dc3545; color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 12px; }
+        .delete-movie-btn:hover { background-color: #c82333; }
+
+        .movie-meta { font-size: 13px; color: #aaa; margin-bottom: 20px; line-height: 1.6; }
+        .meta-item { display: inline-block; margin-right: 15px; }
+        .meta-label { color: #666; font-weight: bold; margin-right: 4px; }
+        .review-list { max-height: 250px; overflow-y: auto; margin-bottom: 20px; }
+        .review-item { background-color: #2a2a2a; padding: 12px; border-radius: 6px; margin-bottom: 10px; font-size: 14px; }
+        .review-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; }
+        .review-score { color: #ffd700; }
+        .review-form { display: flex; gap: 10px; border-top: 1px solid #333; padding-top: 20px; }
+        .review-form select, .review-form input { background-color: #333; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; }
+        .input-name { width: 90px; }
+        .input-score { width: 60px; }
+        .input-text { flex-grow: 1; }
+        .submit-btn { background-color: #4CAF50; color: white; border: none; border-radius: 4px; padding: 0 15px; cursor: pointer; white-space: nowrap; }
+        .movie-form { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+        .movie-form input { background-color: #333; border: 1px solid #444; color: white; padding: 12px; border-radius: 4px; }
+        .movie-form button { background-color: #e50914; color: white; border: none; border-radius: 4px; padding: 12px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>프리비즈 영화 아카이브</h1>
+    </header>
+
+    <div class="container">
+        <div class="action-bar">
+            <div class="filter-group">
+                <select id="sortSelect" class="sort-select">
+                    <option value="titleAsc">가나다순</option>
+                    <option value="ratingDesc">별점 높은순</option>
+                    <option value="ratingAsc">별점 낮은순</option>
+                </select>
+            </div>
+            <button class="add-movie-btn" id="openAddMovieBtn">+ 새로운 영화 추가</button>
+        </div>
+        <div class="movie-grid" id="movieGrid"></div>
+    </div>
+
+    <div class="modal-overlay" id="detailModalOverlay">
+        <div class="modal-content">
+            <span class="close-btn" id="closeDetailBtn">&times;</span>
+            <div class="modal-header-box">
+                <h2 class="modal-title" id="modalTitle">영화 제목</h2>
+                <div class="modal-header-actions">
+                    <button class="edit-movie-btn" id="openEditMovieBtn">내용 수정</button>
+                    <button class="change-poster-btn" id="openPosterModalBtn">포스터 변경</button>
+                    <button class="delete-movie-btn" id="deleteMovieBtn">삭제</button>
+                </div>
+            </div>
+            <div class="movie-meta" id="movieMeta"></div>
+            <div class="review-list" id="reviewList"></div>
+            <div class="review-form">
+                <select id="inputName" class="input-name"><option value="">이름 선택</option></select>
+                <input type="number" id="inputScore" class="input-score" min="1" max="5" placeholder="별점">
+                <input type="text" id="inputText" class="input-text" placeholder="한줄평을 남겨주세요">
+                <button class="submit-btn" id="submitBtn">등록</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="addMovieModalOverlay">
+        <div class="modal-content">
+            <span class="close-btn" id="closeAddMovieBtn">&times;</span>
+            <h2>새로운 영화 추가</h2>
+            <div class="movie-form">
+                <input type="text" id="newTitle" placeholder="영화 제목 (필수)">
+                <input type="text" id="newDirector" placeholder="감독">
+                <input type="text" id="newYear" placeholder="개봉 연도">
+                <input type="text" id="newGenre" placeholder="장르">
+                <button id="submitNewMovieBtn">아카이브에 추가하기</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="editMovieModalOverlay">
+        <div class="modal-content">
+            <span class="close-btn" id="closeEditMovieBtn">&times;</span>
+            <h2>영화 정보 수정</h2>
+            <div class="movie-form">
+                <input type="text" id="editTitle" placeholder="영화 제목 (필수)">
+                <input type="text" id="editDirector" placeholder="감독">
+                <input type="text" id="editYear" placeholder="개봉 연도">
+                <input type="text" id="editGenre" placeholder="장르">
+                <button id="submitEditMovieBtn">수정 내용 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="posterModalOverlay">
+        <div class="modal-content">
+            <span class="close-btn" id="closePosterBtn">&times;</span>
+            <h2>포스터 이미지 주소 입력</h2>
+            <div class="movie-form">
+                <input type="text" id="newPosterUrl" placeholder="이미지 주소를 붙여넣으세요">
+                <button id="submitPosterBtn" style="background-color: #555;">포스터 변경 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBAfArsE8DxHXCRWhT_4kCWCpTeJOyVQoA",
+            authDomain: "moviearchaive.firebaseapp.com",
+            projectId: "moviearchaive",
+            storageBucket: "moviearchaive.firebasestorage.app",
+            messagingSenderId: "776583845663",
+            appId: "1:776583845663:web:1501a14382c1d316fa022a",
+            measurementId: "G-SKFZG73L7S"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 업데이트된 팀원 리스트 (가나다순 정렬)
+        const teamMembers = ["낙현", "도형", "문석", "보현", "세은", "영규", "은서", "정주", "지원", "지훈"];
+        
+        let movies = [];
+        let currentSelectedMovieId = null;
+
+        function initNameSelect() {
+            const selectElement = document.getElementById('inputName');
+            teamMembers.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member;
+                option.textContent = member;
+                selectElement.appendChild(option);
+            });
+        }
+
+        function getAverageScore(reviews) {
+            if (!reviews || reviews.length === 0) return 0;
+            const total = reviews.reduce((sum, review) => sum + Number(review.score), 0);
+            return (total / reviews.length).toFixed(1);
+        }
+
+        function sortMovies() {
+            const sortType = document.getElementById('sortSelect').value;
+            movies.sort((a, b) => {
+                const avgA = Number(getAverageScore(a.reviews));
+                const avgB = Number(getAverageScore(b.reviews));
+                if (sortType === "titleAsc") return a.title.localeCompare(b.title, 'ko');
+                else if (sortType === "ratingDesc") return avgB - avgA;
+                else if (sortType === "ratingAsc") return avgA - avgB;
+                return 0;
+            });
+        }
+
+        async function loadData() {
+            const grid = document.getElementById('movieGrid');
+            try {
+                const querySnapshot = await getDocs(collection(db, "movies"));
+                movies = [];
+                querySnapshot.forEach((doc) => {
+                    movies.push({ id: doc.id, ...doc.data() });
+                });
+                sortMovies();
+                renderMovies();
+            } catch (error) {
+                grid.innerHTML = '<p style="text-align:center; grid-column: 1/-1;">데이터베이스 연결 오류!</p>';
+            }
+        }
+
+        function renderMovies() {
+            const grid = document.getElementById('movieGrid');
+            grid.innerHTML = '';
+            movies.forEach(movie => {
+                const avgScore = getAverageScore(movie.reviews);
+                const card = document.createElement('div');
+                card.className = 'movie-card';
+                card.onclick = () => openDetailModal(movie.id);
+                card.innerHTML = `
+                    <img src="${movie.poster}" alt="${movie.title}" class="poster">
+                    <div class="info">
+                        <p class="title">${movie.title}</p>
+                        <p class="rating">★ ${avgScore}</p>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        document.getElementById('sortSelect').onchange = () => {
+            sortMovies();
+            renderMovies();
+        };
+
+        function openDetailModal(movieId) {
+            currentSelectedMovieId = movieId;
+            const movie = movies.find(m => m.id === movieId);
+            document.getElementById('modalTitle').textContent = movie.title;
+            document.getElementById('movieMeta').innerHTML = `
+                <span class="meta-item"><span class="meta-label">감독</span> ${movie.director || '정보 없음'}</span>
+                <span class="meta-item"><span class="meta-label">개봉</span> ${movie.year || '정보 없음'}</span>
+                <span class="meta-item"><span class="meta-label">장르</span> ${movie.genre || '정보 없음'}</span>
+            `;
+            renderReviews(movie.reviews);
+            document.getElementById('detailModalOverlay').style.display = 'flex';
+        }
+
+        function renderReviews(reviews) {
+            const list = document.getElementById('reviewList');
+            if (!reviews || reviews.length === 0) {
+                list.innerHTML = '<p style="text-align:center; color:#888;">아직 등록된 평점이 없습니다.</p>';
+                return;
+            }
+            list.innerHTML = reviews.map(review => `
+                <div class="review-item">
+                    <div class="review-header"><span>${review.name}</span><span class="review-score">★ ${review.score}</span></div>
+                    <div>${review.text}</div>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('closeDetailBtn').onclick = () => document.getElementById('detailModalOverlay').style.display = 'none';
+        document.getElementById('closeAddMovieBtn').onclick = () => document.getElementById('addMovieModalOverlay').style.display = 'none';
+        document.getElementById('closeEditMovieBtn').onclick = () => document.getElementById('editMovieModalOverlay').style.display = 'none';
+        document.getElementById('closePosterBtn').onclick = () => document.getElementById('posterModalOverlay').style.display = 'none';
+        
+        window.onclick = (event) => {
+            if (event.target === document.getElementById('detailModalOverlay')) document.getElementById('detailModalOverlay').style.display = 'none';
+            if (event.target === document.getElementById('addMovieModalOverlay')) document.getElementById('addMovieModalOverlay').style.display = 'none';
+            if (event.target === document.getElementById('editMovieModalOverlay')) document.getElementById('editMovieModalOverlay').style.display = 'none';
+            if (event.target === document.getElementById('posterModalOverlay')) document.getElementById('posterModalOverlay').style.display = 'none';
+        };
+
+        document.getElementById('openAddMovieBtn').onclick = () => document.getElementById('addMovieModalOverlay').style.display = 'flex';
+        
+        document.getElementById('submitNewMovieBtn').onclick = async () => {
+            const title = document.getElementById('newTitle').value.trim();
+            if (!title) return alert("제목 필수!");
+            const btn = document.getElementById('submitNewMovieBtn');
+            btn.textContent = "저장 중...";
+            try {
+                await addDoc(collection(db, "movies"), {
+                    title: title,
+                    poster: "https://via.placeholder.com/300x450/333333/ffffff?text=" + encodeURIComponent(title),
+                    director: document.getElementById('newDirector').value.trim(),
+                    year: document.getElementById('newYear').value.trim(),
+                    genre: document.getElementById('newGenre').value.trim(),
+                    reviews: []
+                });
+                document.getElementById('newTitle').value = '';
+                document.getElementById('newDirector').value = '';
+                document.getElementById('newYear').value = '';
+                document.getElementById('newGenre').value = '';
+                document.getElementById('addMovieModalOverlay').style.display = 'none';
+                btn.textContent = "아카이브에 추가하기";
+                await loadData();
+            } catch (error) {
+                alert("에러 발생: " + error.message);
+                btn.textContent = "아카이브에 추가하기";
+            }
+        };
+
+        document.getElementById('openEditMovieBtn').onclick = () => {
+            const movie = movies.find(m => m.id === currentSelectedMovieId);
+            document.getElementById('editTitle').value = movie.title;
+            document.getElementById('editDirector').value = movie.director;
+            document.getElementById('editYear').value = movie.year;
+            document.getElementById('editGenre').value = movie.genre;
+            document.getElementById('editMovieModalOverlay').style.display = 'flex';
+        };
+
+        document.getElementById('submitEditMovieBtn').onclick = async () => {
+            const btn = document.getElementById('submitEditMovieBtn');
+            btn.textContent = "수정 중...";
+            try {
+                await updateDoc(doc(db, "movies", currentSelectedMovieId), {
+                    title: document.getElementById('editTitle').value.trim(),
+                    director: document.getElementById('editDirector').value.trim(),
+                    year: document.getElementById('editYear').value.trim(),
+                    genre: document.getElementById('editGenre').value.trim()
+                });
+                document.getElementById('editMovieModalOverlay').style.display = 'none';
+                document.getElementById('detailModalOverlay').style.display = 'none';
+                btn.textContent = "수정 내용 저장";
+                await loadData();
+            } catch (error) {
+                alert("에러 발생: " + error.message);
+                btn.textContent = "수정 내용 저장";
+            }
+        };
+
+        document.getElementById('deleteMovieBtn').onclick = async () => {
+            if (confirm("정말로 이 영화를 아카이브에서 삭제하시겠습니까?")) {
+                const btn = document.getElementById('deleteMovieBtn');
+                btn.textContent = "삭제 중...";
+                try {
+                    await deleteDoc(doc(db, "movies", currentSelectedMovieId));
+                    document.getElementById('detailModalOverlay').style.display = 'none';
+                    btn.textContent = "삭제";
+                    await loadData();
+                } catch (error) {
+                    alert("에러 발생: " + error.message);
+                    btn.textContent = "삭제";
+                }
+            }
+        };
+
+        document.getElementById('openPosterModalBtn').onclick = () => {
+            document.getElementById('newPosterUrl').value = '';
+            document.getElementById('posterModalOverlay').style.display = 'flex';
+        };
+
+        document.getElementById('submitPosterBtn').onclick = async () => {
+            const url = document.getElementById('newPosterUrl').value.trim();
+            if (!url) return alert("이미지 주소를 입력해주세요!");
+            const btn = document.getElementById('submitPosterBtn');
+            btn.textContent = "변경 중...";
+            try {
+                await updateDoc(doc(db, "movies", currentSelectedMovieId), { poster: url });
+                document.getElementById('posterModalOverlay').style.display = 'none';
+                document.getElementById('detailModalOverlay').style.display = 'none';
+                btn.textContent = "포스터 변경 저장";
+                await loadData();
+            } catch (error) {
+                alert("에러 발생: " + error.message);
+                btn.textContent = "포스터 변경 저장";
+            }
+        };
+
+        document.getElementById('submitBtn').onclick = async () => {
+            const name = document.getElementById('inputName').value;
+            const score = document.getElementById('inputScore').value;
+            const text = document.getElementById('inputText').value;
+            if (!name || !score || !text) return alert("모두 입력해 주세요.");
+            const btn = document.getElementById('submitBtn');
+            btn.textContent = "등록 중...";
+            try {
+                const movie = movies.find(m => m.id === currentSelectedMovieId);
+                const currentReviews = movie.reviews || [];
+                const updatedReviews = [...currentReviews, { name: name, score: Number(score), text: text }];
+                await updateDoc(doc(db, "movies", currentSelectedMovieId), { reviews: updatedReviews });
+                document.getElementById('inputName').value = '';
+                document.getElementById('inputScore').value = '';
+                document.getElementById('inputText').value = '';
+                btn.textContent = "등록";
+                await loadData(); 
+                openDetailModal(currentSelectedMovieId); 
+            } catch (error) {
+                alert("에러 발생: " + error.message);
+                btn.textContent = "등록";
+            }
+        };
+
+        initNameSelect();
+        loadData();
+    </script>
+</body>
+</html>
