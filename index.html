@@ -28,7 +28,7 @@
         .rating { font-size: 14px; color: #ffd700; }
         
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.8); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background-color: #1e1e1e; width: 90%; max-width: 500px; border-radius: 12px; padding: 30px; position: relative; }
+        .modal-content { background-color: #1e1e1e; width: 90%; max-width: 500px; border-radius: 12px; padding: 30px; position: relative; max-height: 90vh; overflow-y: auto; }
         .close-btn { position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: #888; }
         .close-btn:hover { color: #fff; }
         
@@ -52,9 +52,17 @@
         .input-score { width: 60px; }
         .input-text { flex-grow: 1; }
         .submit-btn { background-color: #4CAF50; color: white; border: none; border-radius: 4px; padding: 0 15px; cursor: pointer; white-space: nowrap; }
+        
         .movie-form { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
         .movie-form input { background-color: #333; border: 1px solid #444; color: white; padding: 12px; border-radius: 4px; }
         .movie-form button { background-color: #e50914; color: white; border: none; border-radius: 4px; padding: 12px; font-weight: bold; cursor: pointer; }
+        
+        /* 🔥 새로 추가된 장르 태그 버튼 스타일 */
+        .genre-label { font-size: 14px; font-weight: bold; color: #aaa; margin-bottom: -5px; }
+        .genre-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+        .genre-tag { background-color: #333; color: #aaa; border: 1px solid #555; border-radius: 20px; padding: 6px 14px; font-size: 13px; cursor: pointer; user-select: none; transition: all 0.2s; }
+        .genre-tag:hover { background-color: #444; }
+        .genre-tag.selected { background-color: #e50914; color: white; border-color: #e50914; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -104,10 +112,11 @@
             <h2>새로운 영화 추가</h2>
             <div class="movie-form">
                 <input type="text" id="newTitle" placeholder="영화 제목 (필수)">
-                <input type="text" id="newDirector" placeholder="감독">
-                <input type="text" id="newYear" placeholder="개봉 연도">
-                <input type="text" id="newGenre" placeholder="장르">
-                <button id="submitNewMovieBtn">아카이브에 추가하기</button>
+                <input type="text" id="newDirector" placeholder="감독 (선택)">
+                <input type="text" id="newYear" placeholder="개봉 연도 (선택)">
+                
+                <div class="genre-label">장르 선택 (다중 선택 가능)</div>
+                <div class="genre-tags" id="newGenreTags"></div> <button id="submitNewMovieBtn">아카이브에 추가하기</button>
             </div>
         </div>
     </div>
@@ -120,8 +129,9 @@
                 <input type="text" id="editTitle" placeholder="영화 제목 (필수)">
                 <input type="text" id="editDirector" placeholder="감독">
                 <input type="text" id="editYear" placeholder="개봉 연도">
-                <input type="text" id="editGenre" placeholder="장르">
-                <button id="submitEditMovieBtn">수정 내용 저장</button>
+                
+                <div class="genre-label">장르 선택</div>
+                <div class="genre-tags" id="editGenreTags"></div> <button id="submitEditMovieBtn">수정 내용 저장</button>
             </div>
         </div>
     </div>
@@ -154,11 +164,13 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 업데이트된 팀원 리스트 (가나다순 정렬)
         const teamMembers = ["낙현", "도형", "문석", "보현", "세은", "영규", "은서", "정주", "지원", "지훈"];
+        const genreList = ["액션", "코미디", "드라마", "SF", "로맨스", "스릴러", "공포", "판타지", "다큐멘터리", "애니메이션", "뮤지컬", "전쟁", "범죄", "스포츠"];
         
         let movies = [];
         let currentSelectedMovieId = null;
+        let newSelectedGenres = [];
+        let editSelectedGenres = [];
 
         function initNameSelect() {
             const selectElement = document.getElementById('inputName');
@@ -167,6 +179,31 @@
                 option.value = member;
                 option.textContent = member;
                 selectElement.appendChild(option);
+            });
+        }
+
+        // --- 장르 태그 렌더링 함수 ---
+        function renderGenreTags(containerId, selectedArray) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ''; // 초기화
+            
+            genreList.forEach(genre => {
+                const tag = document.createElement('div');
+                // 만약 선택된 배열에 이 장르가 있으면 'selected' 클래스 추가
+                tag.className = 'genre-tag' + (selectedArray.includes(genre) ? ' selected' : '');
+                tag.textContent = genre;
+                
+                // 클릭하면 배열에 넣거나 빼고, UI 업데이트
+                tag.onclick = () => {
+                    if (selectedArray.includes(genre)) {
+                        selectedArray.splice(selectedArray.indexOf(genre), 1);
+                        tag.classList.remove('selected');
+                    } else {
+                        selectedArray.push(genre);
+                        tag.classList.add('selected');
+                    }
+                };
+                container.appendChild(tag);
             });
         }
 
@@ -266,7 +303,12 @@
             if (event.target === document.getElementById('posterModalOverlay')) document.getElementById('posterModalOverlay').style.display = 'none';
         };
 
-        document.getElementById('openAddMovieBtn').onclick = () => document.getElementById('addMovieModalOverlay').style.display = 'flex';
+        // 영화 추가 모달 열기
+        document.getElementById('openAddMovieBtn').onclick = () => {
+            newSelectedGenres = []; // 새 영화 추가할 땐 장르 배열 초기화
+            renderGenreTags('newGenreTags', newSelectedGenres);
+            document.getElementById('addMovieModalOverlay').style.display = 'flex';
+        };
         
         document.getElementById('submitNewMovieBtn').onclick = async () => {
             const title = document.getElementById('newTitle').value.trim();
@@ -279,13 +321,13 @@
                     poster: "https://via.placeholder.com/300x450/333333/ffffff?text=" + encodeURIComponent(title),
                     director: document.getElementById('newDirector').value.trim(),
                     year: document.getElementById('newYear').value.trim(),
-                    genre: document.getElementById('newGenre').value.trim(),
+                    // 선택된 장르 배열을 쉼표(,)로 이어서 텍스트로 저장
+                    genre: newSelectedGenres.join(', '), 
                     reviews: []
                 });
                 document.getElementById('newTitle').value = '';
                 document.getElementById('newDirector').value = '';
                 document.getElementById('newYear').value = '';
-                document.getElementById('newGenre').value = '';
                 document.getElementById('addMovieModalOverlay').style.display = 'none';
                 btn.textContent = "아카이브에 추가하기";
                 await loadData();
@@ -295,12 +337,17 @@
             }
         };
 
+        // 영화 수정 모달 열기
         document.getElementById('openEditMovieBtn').onclick = () => {
             const movie = movies.find(m => m.id === currentSelectedMovieId);
             document.getElementById('editTitle').value = movie.title;
             document.getElementById('editDirector').value = movie.director;
             document.getElementById('editYear').value = movie.year;
-            document.getElementById('editGenre').value = movie.genre;
+            
+            // 기존에 저장된 장르 문자열을 쉼표 기준으로 쪼개서 배열로 만듦
+            editSelectedGenres = movie.genre ? movie.genre.split(',').map(g => g.trim()).filter(g => g !== "") : [];
+            renderGenreTags('editGenreTags', editSelectedGenres);
+            
             document.getElementById('editMovieModalOverlay').style.display = 'flex';
         };
 
@@ -312,7 +359,8 @@
                     title: document.getElementById('editTitle').value.trim(),
                     director: document.getElementById('editDirector').value.trim(),
                     year: document.getElementById('editYear').value.trim(),
-                    genre: document.getElementById('editGenre').value.trim()
+                    // 선택된 장르 배열을 다시 쉼표로 묶어서 저장
+                    genre: editSelectedGenres.join(', ') 
                 });
                 document.getElementById('editMovieModalOverlay').style.display = 'none';
                 document.getElementById('detailModalOverlay').style.display = 'none';
