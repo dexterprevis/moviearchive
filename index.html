@@ -7,9 +7,9 @@
     <style>
         body { font-family: 'Pretendard', sans-serif; background-color: #121212; color: #ffffff; margin: 0; padding: 0; }
         
-        /* 🔥 넷플릭스 스타일로 변경된 헤더 */
+        /* 🔥 제목을 더 크게, 흰색으로 변경 */
         header { text-align: center; padding: 40px 20px; background-color: #000000; border-bottom: 1px solid #333; }
-        h1 { margin: 0; font-family: 'Arial Black', 'Helvetica Neue', Helvetica, sans-serif; font-size: 42px; font-weight: 900; color: #E50914; letter-spacing: 2px; text-transform: uppercase; }
+        h1 { margin: 0; font-family: 'Arial Black', 'Helvetica Neue', Helvetica, sans-serif; font-size: 56px; font-weight: 900; color: #ffffff; letter-spacing: 2px; text-transform: uppercase; }
         
         .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
         
@@ -51,7 +51,6 @@
         .review-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; align-items: center; }
         .review-score { color: #ffd700; margin-left: 8px; }
         
-        /* 🔥 추가된 리뷰 액션 버튼 스타일 */
         .review-actions button { background: none; border: none; font-size: 12px; cursor: pointer; padding: 0 4px; }
         .edit-rev-btn { color: #aaa; }
         .edit-rev-btn:hover { color: #fff; }
@@ -176,14 +175,14 @@
         const db = getFirestore(app);
 
         const teamMembers = ["낙현", "도형", "문석", "보현", "세은", "영규", "은서", "정주", "지원", "지훈"];
-        const genreList = ["액션", "코미디", "드라마", "SF", "로맨스", "스릴러", "공포", "판타지", "다큐멘터리", "애니메이션", "뮤지컬", "전쟁", "범죄", "스포츠"];
+        
+        // 🔥 장르 목록에 '히어로' 추가
+        const genreList = ["액션", "코미디", "드라마", "SF", "로맨스", "스릴러", "공포", "판타지", "다큐멘터리", "애니메이션", "뮤지컬", "전쟁", "범죄", "스포츠", "히어로"];
         
         let movies = [];
         let currentSelectedMovieId = null;
         let newSelectedGenres = [];
         let editSelectedGenres = [];
-        
-        // 🔥 현재 수정 중인 리뷰의 인덱스를 저장할 변수 추가
         let editingReviewIndex = null;
 
         function initNameSelect() {
@@ -275,7 +274,6 @@
 
         function openDetailModal(movieId) {
             currentSelectedMovieId = movieId;
-            // 모달 열 때 리뷰 수정 상태 초기화
             editingReviewIndex = null;
             document.getElementById('submitBtn').textContent = "등록";
             
@@ -296,7 +294,6 @@
                 list.innerHTML = '<p style="text-align:center; color:#888;">아직 등록된 평점이 없습니다.</p>';
                 return;
             }
-            // 🔥 각 리뷰에 수정/삭제 버튼 추가 (data-index로 번호 부여)
             list.innerHTML = reviews.map((review, index) => `
                 <div class="review-item">
                     <div class="review-header">
@@ -314,7 +311,6 @@
             `).join('');
         }
 
-        // 🔥 리뷰 리스트 내의 삭제 및 수정 버튼 클릭 이벤트 감지
         document.getElementById('reviewList').addEventListener('click', async (e) => {
             if (e.target.tagName !== 'BUTTON') return;
             
@@ -325,17 +321,15 @@
             if (!movie) return;
             const currentReviews = movie.reviews || [];
 
-            // 삭제 버튼 눌렀을 때
             if (e.target.classList.contains('delete-rev-btn')) {
                 if (confirm("이 한줄평을 삭제하시겠습니까?")) {
                     e.target.textContent = "삭제 중...";
-                    currentReviews.splice(index, 1); // 배열에서 해당 리뷰 삭제
+                    currentReviews.splice(index, 1);
                     await updateDoc(doc(db, "movies", currentSelectedMovieId), { reviews: currentReviews });
                     await loadData();
                     openDetailModal(currentSelectedMovieId);
                 }
             } 
-            // 수정 버튼 눌렀을 때
             else if (e.target.classList.contains('edit-rev-btn')) {
                 const rev = currentReviews[index];
                 document.getElementById('inputName').value = rev.name;
@@ -343,7 +337,7 @@
                 document.getElementById('inputText').value = rev.text;
                 
                 document.getElementById('submitBtn').textContent = "수정 저장";
-                editingReviewIndex = index; // 현재 수정 중인 번호 기억
+                editingReviewIndex = index;
             }
         });
 
@@ -471,7 +465,6 @@
                 const movie = movies.find(m => m.id === currentSelectedMovieId);
                 const currentReviews = movie.reviews || [];
                 
-                // 🔥 수정 모드인 경우 덮어쓰고, 아니면 새로 추가
                 if (editingReviewIndex !== null) {
                     currentReviews[editingReviewIndex] = { name: name, score: Number(score), text: text };
                 } else {
@@ -480,7 +473,6 @@
                 
                 await updateDoc(doc(db, "movies", currentSelectedMovieId), { reviews: currentReviews });
                 
-                // 입력창 및 상태 초기화
                 document.getElementById('inputName').value = '';
                 document.getElementById('inputScore').value = '';
                 document.getElementById('inputText').value = '';
